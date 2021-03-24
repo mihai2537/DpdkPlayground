@@ -56,7 +56,7 @@ void main_logic()
         if (rte_ring_dequeue(recv_ring, &msg) < 0)
         {
             printf("Nothing on the Queue so I'm going to sleep a lil'\n");
-            usleep(5);
+            usleep(5000000);
             continue;
         }
         // Means I got a packet from the queue.
@@ -86,8 +86,19 @@ void init_stuff()
     }
 }
 
-int main()
+int main(int argc, char **argv)
 {
+    int ret;
+
+    ret = rte_eal_init(argc, argv);
+    if (ret < 0)
+        rte_exit(EXIT_FAILURE, "Cannot init EAL\n");
+
+    if (rte_eal_process_type() == RTE_PROC_PRIMARY)
+    {
+        report_and_exit("Process type is primary, it has to be SECONDARY. --proc-type=secondary\n");
+    }
+
     init_stuff();
 
     signal(SIGINT, signal_handler);
