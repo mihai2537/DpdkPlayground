@@ -29,12 +29,15 @@
 #define MBUF_CACHE_SIZE 250
 #define BURST_SIZE 32
 
-caddr_t memptr;
-sem_t *semReader;
-sem_t *semWriter;
-int fd;
+struct rte_ring *send_ring, *recv_ring;
+struct rte_mempool *message_pool;
 
-// shared mem funcs
+const unsigned flags = 0;
+const unsigned ring_size = 64;
+const unsigned pool_size = 1024;
+const unsigned pool_cache = 32;
+const unsigned priv_data_sz = 0;
+
 void report_and_exit(const char *msg)
 {
 	perror(msg);
@@ -43,31 +46,6 @@ void report_and_exit(const char *msg)
 
 void clean_up()
 {
-	munmap(memptr, BYTE_SIZE);
-	close(fd);
-	sem_close(semReader);
-	sem_close(semWriter);
-	shm_unlink(BACKING_FILE);
-	sem_unlink(SEM_WRITER);
-}
-
-void increment_semaphore(sem_t *semptr)
-{
-	if (sem_post(semptr) < 0)
-	{
-		clean_up();
-		report_and_exit("Incrementing semaphore failed.\n");
-	}
-}
-
-void wait_semaphore(sem_t *semptr)
-{
-	if (sem_wait(semptr) != 0)
-	{
-		//error
-		clean_up();
-		report_and_exit("Waiting at semaphore failed.\n");
-	}
 }
 
 static void
@@ -110,7 +88,10 @@ port_init(uint16_t port, struct rte_mempool *mbuf_pool)
 	struct rte_eth_txconf txconf;
 
 	if (!rte_eth_dev_is_valid_port(port))
+	{
+		printf("No valid port.\n");
 		return -1;
+	}
 
 	retval = rte_eth_dev_info_get(port, &dev_info);
 	if (retval != 0)
@@ -127,11 +108,18 @@ port_init(uint16_t port, struct rte_mempool *mbuf_pool)
 	/* Configure the Ethernet device. */
 	retval = rte_eth_dev_configure(port, rx_rings, tx_rings, &port_conf);
 	if (retval != 0)
+	{
+		printf("problem at: rte_eth_dev_configure\n");
 		return retval;
+	}
 
 	retval = rte_eth_dev_adjust_nb_rx_tx_desc(port, &nb_rxd, &nb_txd);
 	if (retval != 0)
+	{
+
+		printf("Problem at: rte_eth_dev_adjust_nb_rx_tx_desc\n");
 		return retval;
+	}
 
 	/* Allocate and set up 1 RX queue per Ethernet port. */
 	for (q = 0; q < rx_rings; q++)
@@ -139,7 +127,11 @@ port_init(uint16_t port, struct rte_mempool *mbuf_pool)
 		retval = rte_eth_rx_queue_setup(port, q, nb_rxd,
 										rte_eth_dev_socket_id(port), NULL, mbuf_pool);
 		if (retval < 0)
+		{
+			printf("%i %i %i %i\n", -EIO, -ENODEV, -EINVAL, -ENOMEM);
+			printf("Problem at: rte_eth_rx_queue_setup, code: %d\n", retval);
 			return retval;
+		}
 	}
 
 	txconf = dev_info.default_txconf;
@@ -150,19 +142,28 @@ port_init(uint16_t port, struct rte_mempool *mbuf_pool)
 		retval = rte_eth_tx_queue_setup(port, q, nb_txd,
 										rte_eth_dev_socket_id(port), &txconf);
 		if (retval < 0)
+		{
+			printf("Problem at: rte_eth_x_queue_setup\n");
 			return retval;
+		}
 	}
 
 	/* Start the Ethernet port. */
 	retval = rte_eth_dev_start(port);
 	if (retval < 0)
+	{
+		printf("Problem at: rte_eth_dev_start\n");
 		return retval;
+	}
 
 	/* Display the port MAC address. */
 	struct rte_ether_addr addr;
 	retval = rte_eth_macaddr_get(port, &addr);
 	if (retval != 0)
+	{
+		printf("Problem at: rte_eth_macaddr_get\n");
 		return retval;
+	}
 
 	printf("Port %u MAC: %02" PRIx8 " %02" PRIx8 " %02" PRIx8
 		   " %02" PRIx8 " %02" PRIx8 " %02" PRIx8 "\n",
@@ -174,7 +175,10 @@ port_init(uint16_t port, struct rte_mempool *mbuf_pool)
 	/* Enable RX in promiscuous mode for the Ethernet device. */
 	retval = rte_eth_promiscuous_enable(port);
 	if (retval != 0)
+	{
+		printf("Problem at: rte_eth_promiscuous_enable\n");
 		return retval;
+	}
 
 	return 0;
 }
@@ -187,6 +191,8 @@ static __rte_noreturn void
 lcore_main(void)
 {
 	uint16_t port;
+	uint16_t i = 0;
+	struct rte_mbuf *mbuf;
 
 	/*
 	 * Check that the port is on the same NUMA node as the polling thread
@@ -205,6 +211,7 @@ lcore_main(void)
 		   rte_lcore_id());
 
 	port = rte_eth_find_next_owned_by(0, RTE_ETH_DEV_NO_OWNER);
+
 	/* Run until the application is quit or killed. */
 	for (;;)
 	{
@@ -221,69 +228,45 @@ lcore_main(void)
 			continue;
 
 		printf("Number of packets received: %d\n", nb_rx);
-
-		//wait untill reader is not using the shared mem.
-		sem_wait(semWriter);
-		//put the data on shared mem
-		memcpy((void *)memptr, (const void *)&nb_rx, sizeof(nb_rx));
-		// let the reader access teh shared mem
-		increment_semaphore(semReader);
+		// Now do something with the received data.
+		for (i = 0; i < nb_rx; i++)
+		{
+			mbuf = bufs[i];
+			if (rte_ring_enqueue(send_ring, (void *)mbuf) == 0)
+			{
+				printf("Packet was put into queue.\n");
+			}
+			else
+			{
+				printf("Couldn't put packet into queue.\n");
+			}
+		}
 	}
 }
 
 void init_stuff()
 {
-	// open the shared memory file
-	fd = shm_open(BACKING_FILE, O_RDWR | O_CREAT, ACCESSPERMS); /* empty to begin */
-	if (fd < 0)
-		report_and_exit("Can't get file descriptor...");
-
-	ftruncate(fd, BYTE_SIZE);
-
-	/* get a pointer to memory */
-	memptr = mmap(NULL,					  /* let system pick where to put segment */
-				  BYTE_SIZE,			  /* how many bytes */
-				  PROT_READ | PROT_WRITE, /* access protections */
-				  MAP_SHARED,			  /* mapping visible to other processes */
-				  fd,					  /* file descriptor */
-				  0);					  /* offset: start at 1st byte */
-	if ((caddr_t)-1 == memptr)
+	send_ring = rte_ring_create(PRI_2_SEC, ring_size, rte_socket_id(), flags);
+	if (send_ring == NULL)
 	{
-		close(fd);
-		shm_unlink(BACKING_FILE);
-		report_and_exit("Can't access segment...");
+		report_and_exit("Send ring failed.\n");
 	}
 
-	fprintf(stderr, "shared mem address: %p [0..%d]\n", memptr, BYTE_SIZE - 1);
-	fprintf(stderr, "backing file:       /dev/shm%s\n", BACKING_FILE);
-
-	/* create a semaphore for reader */
-	semReader = sem_open(SEM_READER,  /* name */
-						 O_CREAT,	  /* create the semaphore */
-						 ACCESSPERMS, /* protection perms */
-						 0);		  /* initial value */
-	if (semReader == (void *)-1)
+	recv_ring = rte_ring_create(SEC_2_PRI, ring_size, rte_socket_id(), flags);
+	if (recv_ring == NULL)
 	{
-		close(fd);
-		shm_unlink(BACKING_FILE);
-		munmap(memptr, BYTE_SIZE);
-		report_and_exit("sem_open");
+		report_and_exit("Recv ring failed.\n");
 	}
+	message_pool = rte_pktmbuf_pool_create(MSG_POOL, NUM_MBUFS * 1,
+										   MBUF_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
 
-	strcpy(memptr, MEM_CONTENTS);
-
-	/* create a semaphore for reader */
-	semWriter = sem_open(SEM_WRITER,  /* name */
-						 O_CREAT,	  /* create the semaphore */
-						 ACCESSPERMS, /* protection perms */
-						 1);		  /* initial value */
-	if (semWriter == (void *)-1)
+	// message_pool = rte_mempool_create(MSG_POOL, NUM_MBUFS,
+	// 								  sizeof(struct rte_mbuf), MBUF_CACHE_SIZE, priv_data_sz,
+	// 								  NULL, NULL, NULL, NULL,
+	// 								  rte_socket_id(), flags);
+	if (message_pool == NULL)
 	{
-		close(fd);
-		shm_unlink(BACKING_FILE);
-		munmap(memptr, BYTE_SIZE);
-		sem_close(semReader);
-		report_and_exit("sem_open");
+		report_and_exit("Message pool ring failed.\n");
 	}
 }
 
@@ -293,18 +276,19 @@ void init_stuff()
  */
 int main(int argc, char *argv[])
 {
-	struct rte_mempool *mbuf_pool;
 	unsigned nb_ports;
 	uint16_t portid;
 
-	signal(SIGINT, signal_handler);
-	signal(SIGTERM, signal_handler);
-	init_stuff();
-
-	/* Initialize the Environment Abstraction Layer (EAL). */
+	/* FIRST DO THIS */
+	/* Initialize the Environment Abstraction Layer (EAL).*/
 	int ret = rte_eal_init(argc, argv);
 	if (ret < 0)
 		rte_exit(EXIT_FAILURE, "Error with EAL initialization\n");
+
+	init_stuff();
+
+	signal(SIGINT, signal_handler);
+	signal(SIGTERM, signal_handler);
 
 	argc -= ret;
 	argv += ret;
@@ -314,16 +298,9 @@ int main(int argc, char *argv[])
 	if (nb_ports < 1)
 		rte_exit(EXIT_FAILURE, "Error: number of ports must be at least 1\n");
 
-	/* Creates a new mempool in memory to hold the mbufs. */
-	mbuf_pool = rte_pktmbuf_pool_create("MBUF_POOL", NUM_MBUFS * nb_ports,
-										MBUF_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
-
-	if (mbuf_pool == NULL)
-		rte_exit(EXIT_FAILURE, "Cannot create mbuf pool\n");
-
 	/* Initialize ONE port only. */
 	portid = rte_eth_find_next_owned_by(0, RTE_ETH_DEV_NO_OWNER);
-	if (port_init(portid, mbuf_pool) != 0)
+	if (port_init(portid, message_pool) != 0)
 		rte_exit(EXIT_FAILURE, "Cannot init port %" PRIu16 "\n",
 				 portid);
 

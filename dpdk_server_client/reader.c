@@ -68,21 +68,21 @@ void main_logic()
 void init_stuff()
 {
     recv_ring = rte_ring_lookup(PRI_2_SEC);
-    if (recv_ring == ENOENT)
+    if (recv_ring == NULL)
     {
         report_and_exit("Recv ring failed.\n");
     }
 
     send_ring = rte_ring_lookup(SEC_2_PRI);
-    if (recv_ring == ENOENT)
+    if (send_ring == NULL)
     {
-        report_and_exit("Recv ring failed.\n");
+        report_and_exit("Send ring failed.\n");
     }
 
     message_pool = rte_mempool_lookup(MSG_POOL);
-    if (recv_ring == ENOENT)
+    if (message_pool == NULL)
     {
-        report_and_exit("Recv ring failed.\n");
+        report_and_exit("Message pool failed.\n");
     }
 }
 
