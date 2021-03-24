@@ -10,6 +10,9 @@
 #include <signal.h>
 #include "shmem.h"
 
+// libs DPDK
+#include <inttypes.h>
+
 caddr_t memptr;
 sem_t *semReader;
 sem_t *semWriter;
@@ -29,6 +32,15 @@ void clean_up()
     sem_close(semWriter);
     unlink(BACKING_FILE);
     sem_unlink(SEM_READER);
+}
+
+void increment_semaphore(sem_t *semptr)
+{
+    if (sem_post(semptr) < 0)
+    {
+        clean_up();
+        report_and_exit("Incrementing semaphore failed.\n");
+    }
 }
 
 void wait_semaphore(sem_t *semptr)
@@ -103,6 +115,26 @@ signal_handler(int signum)
     }
 }
 
+void main_logic()
+{
+    for (;;)
+    {
+        //I need permission before accessing the shared memory.
+        wait_semaphore(semReader);
+
+        // write(STDOUT_FILENO, memptr, sizeof(uint16_t));
+        printf("Read: %d\n", *(uint16_t *)memptr);
+
+        //I am done using the shared memory.
+        increment_semaphore(semWriter);
+    }
+
+    // wait_semaphore(semReader);
+    // int i;
+    // for (i = 0; i < strlen(MEM_CONTENTS); i++)
+    //     write(STDOUT_FILENO, memptr + i, 1); /* one byte at a time */
+}
+
 int main()
 {
 
@@ -112,10 +144,7 @@ int main()
     signal(SIGTERM, signal_handler);
 
     /* use semaphore as a mutex (lock) by waiting for writer to increment it */
-    wait_semaphore(semReader);
-    int i;
-    for (i = 0; i < strlen(MEM_CONTENTS); i++)
-        write(STDOUT_FILENO, memptr + i, 1); /* one byte at a time */
+    main_logic();
 
     /* cleanup */
     clean_up();

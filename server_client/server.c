@@ -204,14 +204,13 @@ lcore_main(void)
 	printf("\nCore %u forwarding packets. [Ctrl+C to quit]\n",
 		   rte_lcore_id());
 
+	port = rte_eth_find_next_owned_by(0, RTE_ETH_DEV_NO_OWNER);
 	/* Run until the application is quit or killed. */
 	for (;;)
 	{
 		/*
 		 * Receive packets on a port, print it, then put it on the TX buffer.
 		 */
-
-		port = rte_eth_find_next_owned_by(0, RTE_ETH_DEV_NO_OWNER);
 
 		/* Get burst of RX packets, from first port of pair. */
 		struct rte_mbuf *bufs[BURST_SIZE];
@@ -222,8 +221,13 @@ lcore_main(void)
 			continue;
 
 		printf("Number of packets received: %d\n", nb_rx);
+
+		//wait untill reader is not using the shared mem.
+		sem_wait(semWriter);
+		//put the data on shared mem
+		memcpy((void *)memptr, (const void *)&nb_rx, sizeof(nb_rx));
 		// let the reader access teh shared mem
-		sem_post(semReader);
+		increment_semaphore(semReader);
 	}
 }
 
@@ -272,7 +276,7 @@ void init_stuff()
 	semWriter = sem_open(SEM_WRITER,  /* name */
 						 O_CREAT,	  /* create the semaphore */
 						 ACCESSPERMS, /* protection perms */
-						 0);		  /* initial value */
+						 1);		  /* initial value */
 	if (semWriter == (void *)-1)
 	{
 		close(fd);
