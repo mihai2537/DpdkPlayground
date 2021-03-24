@@ -10,12 +10,80 @@
 #include <rte_lcore.h>
 #include <rte_mbuf.h>
 
+//shared mem libs
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <semaphore.h>
+#include <string.h>
+#include <signal.h>
+#include "shmem.h"
+
 #define RX_RING_SIZE 1024
 #define TX_RING_SIZE 1024
 
 #define NUM_MBUFS 8191
 #define MBUF_CACHE_SIZE 250
 #define BURST_SIZE 32
+
+caddr_t memptr;
+sem_t *semReader;
+sem_t *semWriter;
+int fd;
+
+// shared mem funcs
+void report_and_exit(const char *msg)
+{
+	perror(msg);
+	exit(-1);
+}
+
+void clean_up()
+{
+	munmap(memptr, BYTE_SIZE);
+	close(fd);
+	sem_close(semReader);
+	sem_close(semWriter);
+	shm_unlink(BACKING_FILE);
+	sem_unlink(SEM_WRITER);
+}
+
+void increment_semaphore(sem_t *semptr)
+{
+	if (sem_post(semptr) < 0)
+	{
+		clean_up();
+		report_and_exit("Incrementing semaphore failed.\n");
+	}
+}
+
+void wait_semaphore(sem_t *semptr)
+{
+	if (sem_wait(semptr) != 0)
+	{
+		//error
+		clean_up();
+		report_and_exit("Waiting at semaphore failed.\n");
+	}
+}
+
+static void
+signal_handler(int signum)
+{
+	if (signum == SIGINT || signum == SIGTERM)
+	{
+		printf("\n\nSignal %d received, preparing to exit...\n",
+			   signum);
+		clean_up();
+		report_and_exit("Forcefully killed.\n");
+		// force_quit = true;
+	}
+}
+
+// end of shared mem funcs
 
 static const struct rte_eth_conf port_conf_default = {
 	.rxmode = {
@@ -154,18 +222,64 @@ lcore_main(void)
 			continue;
 
 		printf("Number of packets received: %d\n", nb_rx);
+		// let the reader access teh shared mem
+		sem_post(semReader);
+	}
+}
 
-		/* Send burst of TX packets, to second port of pair. */
-		const uint16_t nb_tx = rte_eth_tx_burst(port, 0,
-												bufs, nb_rx);
+void init_stuff()
+{
+	// open the shared memory file
+	fd = shm_open(BACKING_FILE, O_RDWR | O_CREAT, ACCESSPERMS); /* empty to begin */
+	if (fd < 0)
+		report_and_exit("Can't get file descriptor...");
 
-		/* Free any unsent packets. */
-		if (unlikely(nb_tx < nb_rx))
-		{
-			uint16_t buf;
-			for (buf = nb_tx; buf < nb_rx; buf++)
-				rte_pktmbuf_free(bufs[buf]);
-		}
+	ftruncate(fd, BYTE_SIZE);
+
+	/* get a pointer to memory */
+	memptr = mmap(NULL,					  /* let system pick where to put segment */
+				  BYTE_SIZE,			  /* how many bytes */
+				  PROT_READ | PROT_WRITE, /* access protections */
+				  MAP_SHARED,			  /* mapping visible to other processes */
+				  fd,					  /* file descriptor */
+				  0);					  /* offset: start at 1st byte */
+	if ((caddr_t)-1 == memptr)
+	{
+		close(fd);
+		shm_unlink(BACKING_FILE);
+		report_and_exit("Can't access segment...");
+	}
+
+	fprintf(stderr, "shared mem address: %p [0..%d]\n", memptr, BYTE_SIZE - 1);
+	fprintf(stderr, "backing file:       /dev/shm%s\n", BACKING_FILE);
+
+	/* create a semaphore for reader */
+	semReader = sem_open(SEM_READER,  /* name */
+						 O_CREAT,	  /* create the semaphore */
+						 ACCESSPERMS, /* protection perms */
+						 0);		  /* initial value */
+	if (semReader == (void *)-1)
+	{
+		close(fd);
+		shm_unlink(BACKING_FILE);
+		munmap(memptr, BYTE_SIZE);
+		report_and_exit("sem_open");
+	}
+
+	strcpy(memptr, MEM_CONTENTS);
+
+	/* create a semaphore for reader */
+	semWriter = sem_open(SEM_WRITER,  /* name */
+						 O_CREAT,	  /* create the semaphore */
+						 ACCESSPERMS, /* protection perms */
+						 0);		  /* initial value */
+	if (semWriter == (void *)-1)
+	{
+		close(fd);
+		shm_unlink(BACKING_FILE);
+		munmap(memptr, BYTE_SIZE);
+		sem_close(semReader);
+		report_and_exit("sem_open");
 	}
 }
 
@@ -178,6 +292,10 @@ int main(int argc, char *argv[])
 	struct rte_mempool *mbuf_pool;
 	unsigned nb_ports;
 	uint16_t portid;
+
+	signal(SIGINT, signal_handler);
+	signal(SIGTERM, signal_handler);
+	init_stuff();
 
 	/* Initialize the Environment Abstraction Layer (EAL). */
 	int ret = rte_eal_init(argc, argv);
@@ -213,3 +331,15 @@ int main(int argc, char *argv[])
 
 	return 0;
 }
+
+// /* Send burst of TX packets, to second port of pair. */
+// const uint16_t nb_tx = rte_eth_tx_burst(port, 0,
+// 										bufs, nb_rx);
+
+// /* Free any unsent packets. */
+// if (unlikely(nb_tx < nb_rx))
+// {
+// 	uint16_t buf;
+// 	for (buf = nb_tx; buf < nb_rx; buf++)
+// 		rte_pktmbuf_free(bufs[buf]);
+// }
