@@ -1,0 +1,4 @@
+The server is a dpdk app.
+The reader is a non dpdk app.
+
+The synchronization is done through shared mem and semaphors.
