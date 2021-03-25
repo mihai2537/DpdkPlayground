@@ -2,7 +2,7 @@
 How to build:
 
 make reader
-make writer
+make server
 ----------------------------------------------
 How to use:
 

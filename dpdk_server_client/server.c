@@ -257,15 +257,28 @@ void init_stuff()
 	{
 		report_and_exit("Recv ring failed.\n");
 	}
-	message_pool = rte_pktmbuf_pool_create(MSG_POOL, NUM_MBUFS * 1,
-										   MBUF_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
+
+	message_pool = rte_pktmbuf_pool_create(MSG_POOL,				  // name of the pool
+										   NUM_MBUFS * 1,			  // number of elements
+										   MBUF_CACHE_SIZE,			  // cache size
+										   0,						  // priv size
+										   RTE_MBUF_DEFAULT_BUF_SIZE, // size of data buffer including headroom
+										   rte_socket_id());		  // socket where the memory should be allocated
 
 	//why this DID NOT WORK?
 
-	// message_pool = rte_mempool_create(MSG_POOL, NUM_MBUFS,
-	// 								  sizeof(struct rte_mbuf), MBUF_CACHE_SIZE, priv_data_sz,
-	// 								  NULL, NULL, NULL, NULL,
-	// 								  rte_socket_id(), flags);
+	// message_pool = rte_mempool_create(MSG_POOL,					 //name of the pool
+	// 								  NUM_MBUFS * 1,			 //number of elements
+	// 								  RTE_MBUF_DEFAULT_BUF_SIZE, //size of each elem
+	// 								  MBUF_CACHE_SIZE,			 // cache size
+	// 								  0,						 //size of private data appended after the mempool struct
+	// 								  NULL,						 // function pointer to init priv data
+	// 								  NULL,						 // opaque pointer to data that can be used in the mempool constructor func
+	// 								  NULL,						 // func pointer for each object init
+	// 								  NULL,						 // opaque pointer to data that can be used as argument for each call to the object constructor function
+	// 								  rte_socket_id(),			 // socket...
+	// 								  flags);					 // some flags
+
 	if (message_pool == NULL)
 	{
 		report_and_exit("Message pool ring failed.\n");
