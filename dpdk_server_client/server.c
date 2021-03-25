@@ -185,7 +185,7 @@ port_init(uint16_t port, struct rte_mempool *mbuf_pool)
 
 /*
  * The lcore main. This is the main thread that does the work.
- * Packet comes on RX buffer then goes back on TX buffer.
+ * Packet comes on RX buffer then it is sent to reader app.
  */
 static __rte_noreturn void
 lcore_main(void)
@@ -219,7 +219,7 @@ lcore_main(void)
 		 * Receive packets on a port, print it, then put it on the TX buffer.
 		 */
 
-		/* Get burst of RX packets, from first port of pair. */
+		/* Get burst of RX packets, from used port. */
 		struct rte_mbuf *bufs[BURST_SIZE];
 		const uint16_t nb_rx = rte_eth_rx_burst(port, 0,
 												bufs, BURST_SIZE);
@@ -259,6 +259,8 @@ void init_stuff()
 	}
 	message_pool = rte_pktmbuf_pool_create(MSG_POOL, NUM_MBUFS * 1,
 										   MBUF_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
+
+	//why this DID NOT WORK?
 
 	// message_pool = rte_mempool_create(MSG_POOL, NUM_MBUFS,
 	// 								  sizeof(struct rte_mbuf), MBUF_CACHE_SIZE, priv_data_sz,
