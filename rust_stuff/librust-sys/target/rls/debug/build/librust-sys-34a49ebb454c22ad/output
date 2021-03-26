@@ -1,0 +1,2 @@
+cargo:rustc-link=rte_eal
+rustc-link-search=/usr/local/lib/x86_64-linux-gnu
