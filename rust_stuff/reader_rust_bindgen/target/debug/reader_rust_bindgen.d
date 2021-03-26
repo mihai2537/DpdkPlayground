@@ -1,0 +1,1 @@
+/home/mihai/DPDK/playground/rust_stuff/reader_rust_bindgen/target/debug/reader_rust_bindgen: /home/mihai/DPDK/playground/rust_stuff/reader_rust_bindgen/src/bindings.rs /home/mihai/DPDK/playground/rust_stuff/reader_rust_bindgen/src/main.rs
