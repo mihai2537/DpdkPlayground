@@ -2,14 +2,19 @@
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
 #[allow(dead_code)]
-mod bindingsInline;
+mod bindingsMbuf;
 
-use bindingsInline::{
-    rte_eal_init, rte_eal_process_type, rte_mempool_lookup, rte_proc_type_t_RTE_PROC_PRIMARY,
-    rte_ring_dequeue_real, rte_ring_lookup,
+use bindingsMbuf::{
+    rte_eal_init, rte_eal_process_type, rte_mbuf, rte_mempool_lookup,
+    rte_proc_type_t_RTE_PROC_PRIMARY, rte_ring_dequeue_real, rte_ring_lookup,
 };
+
 use std::ffi::CString;
+use std::os::raw::c_void;
+use std::ptr::null_mut;
+
 use std::process;
+use std::{thread, time};
 
 fn main() {
     println!("Hello, world!");
@@ -63,6 +68,21 @@ fn main() {
         println!("I could not get the rte_mempool!\n");
     } else {
         println!("SUCCES, Got the mempool");
+    }
+
+    let mut packets_received: i32;
+    let sleep_time = time::Duration::from_secs(5);
+
+    let mut result: *mut c_void = null_mut();
+
+    loop {
+        packets_received = unsafe { rte_ring_dequeue_real(recv_ring, &mut result) };
+        if 0 > packets_received {
+            println!("Nothing on the Queue, so I need to sleep a little.");
+            thread::sleep(sleep_time);
+        } else {
+            println!("Hooray, Packet Received in RUST");
+        }
     }
 }
 // This was memory leak prone because you had to call from_raw(ptr) to get those things back.
