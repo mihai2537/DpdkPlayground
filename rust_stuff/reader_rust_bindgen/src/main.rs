@@ -29,6 +29,7 @@ fn main() {
 
     if 0 > ret_val {
         println!("Eroare, nu a mers rte_eal_init.");
+        process::exit(1);
     } else {
         println!("Este BAAAA A MERS NENOROCIREA MANCA-V-AS");
     }

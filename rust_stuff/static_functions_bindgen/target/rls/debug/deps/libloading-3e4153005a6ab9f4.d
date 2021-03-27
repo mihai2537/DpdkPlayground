@@ -1,0 +1,11 @@
+/home/mihai/DPDK/playground/rust_stuff/static_functions_bindgen/target/rls/debug/deps/libloading-3e4153005a6ab9f4.rmeta: /home/mihai/.cargo/registry/src/github.com-1ecc6299db9ec823/libloading-0.5.2/src/lib.rs /home/mihai/.cargo/registry/src/github.com-1ecc6299db9ec823/libloading-0.5.2/src/os/mod.rs /home/mihai/.cargo/registry/src/github.com-1ecc6299db9ec823/libloading-0.5.2/src/changelog.rs /home/mihai/.cargo/registry/src/github.com-1ecc6299db9ec823/libloading-0.5.2/src/util.rs /home/mihai/.cargo/registry/src/github.com-1ecc6299db9ec823/libloading-0.5.2/src/os/unix/mod.rs
+
+/home/mihai/DPDK/playground/rust_stuff/static_functions_bindgen/target/rls/debug/deps/liblibloading-3e4153005a6ab9f4.rlib: /home/mihai/.cargo/registry/src/github.com-1ecc6299db9ec823/libloading-0.5.2/src/lib.rs /home/mihai/.cargo/registry/src/github.com-1ecc6299db9ec823/libloading-0.5.2/src/os/mod.rs /home/mihai/.cargo/registry/src/github.com-1ecc6299db9ec823/libloading-0.5.2/src/changelog.rs /home/mihai/.cargo/registry/src/github.com-1ecc6299db9ec823/libloading-0.5.2/src/util.rs /home/mihai/.cargo/registry/src/github.com-1ecc6299db9ec823/libloading-0.5.2/src/os/unix/mod.rs
+
+/home/mihai/DPDK/playground/rust_stuff/static_functions_bindgen/target/rls/debug/deps/libloading-3e4153005a6ab9f4.d: /home/mihai/.cargo/registry/src/github.com-1ecc6299db9ec823/libloading-0.5.2/src/lib.rs /home/mihai/.cargo/registry/src/github.com-1ecc6299db9ec823/libloading-0.5.2/src/os/mod.rs /home/mihai/.cargo/registry/src/github.com-1ecc6299db9ec823/libloading-0.5.2/src/changelog.rs /home/mihai/.cargo/registry/src/github.com-1ecc6299db9ec823/libloading-0.5.2/src/util.rs /home/mihai/.cargo/registry/src/github.com-1ecc6299db9ec823/libloading-0.5.2/src/os/unix/mod.rs
+
+/home/mihai/.cargo/registry/src/github.com-1ecc6299db9ec823/libloading-0.5.2/src/lib.rs:
+/home/mihai/.cargo/registry/src/github.com-1ecc6299db9ec823/libloading-0.5.2/src/os/mod.rs:
+/home/mihai/.cargo/registry/src/github.com-1ecc6299db9ec823/libloading-0.5.2/src/changelog.rs:
+/home/mihai/.cargo/registry/src/github.com-1ecc6299db9ec823/libloading-0.5.2/src/util.rs:
+/home/mihai/.cargo/registry/src/github.com-1ecc6299db9ec823/libloading-0.5.2/src/os/unix/mod.rs:

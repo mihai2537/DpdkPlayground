@@ -1,0 +1,26 @@
+TARGET = Some("x86_64-unknown-linux-gnu")
+OPT_LEVEL = Some("0")
+HOST = Some("x86_64-unknown-linux-gnu")
+CC_x86_64-unknown-linux-gnu = None
+CC_x86_64_unknown_linux_gnu = None
+HOST_CC = None
+CC = None
+CFLAGS_x86_64-unknown-linux-gnu = None
+CFLAGS_x86_64_unknown_linux_gnu = None
+HOST_CFLAGS = None
+CFLAGS = None
+CRATE_CC_NO_DEFAULTS = None
+DEBUG = Some("true")
+CARGO_CFG_TARGET_FEATURE = Some("fxsr,sse,sse2")
+running: "cc" "-O0" "-ffunction-sections" "-fdata-sections" "-fPIC" "-g" "-fno-omit-frame-pointer" "-m64" "-Wall" "-Wextra" "-Wno-unused-parameter" "-o" "/home/mihai/DPDK/playground/rust_stuff/static_functions_bindgen/target/rls/debug/build/static_functions_bindgen-159014f0ab0d543b/out/src/static-functions.o" "-c" "src/static-functions.c"
+exit code: 0
+AR_x86_64-unknown-linux-gnu = None
+AR_x86_64_unknown_linux_gnu = None
+HOST_AR = None
+AR = None
+running: "ar" "cq" "/home/mihai/DPDK/playground/rust_stuff/static_functions_bindgen/target/rls/debug/build/static_functions_bindgen-159014f0ab0d543b/out/libfoo.a" "/home/mihai/DPDK/playground/rust_stuff/static_functions_bindgen/target/rls/debug/build/static_functions_bindgen-159014f0ab0d543b/out/src/static-functions.o"
+exit code: 0
+running: "ar" "s" "/home/mihai/DPDK/playground/rust_stuff/static_functions_bindgen/target/rls/debug/build/static_functions_bindgen-159014f0ab0d543b/out/libfoo.a"
+exit code: 0
+cargo:rustc-link-lib=static=foo
+cargo:rustc-link-search=native=/home/mihai/DPDK/playground/rust_stuff/static_functions_bindgen/target/rls/debug/build/static_functions_bindgen-159014f0ab0d543b/out

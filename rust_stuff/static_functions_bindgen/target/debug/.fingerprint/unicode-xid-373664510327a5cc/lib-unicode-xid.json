@@ -1,0 +1,1 @@
+{"rustc":6339714466149818003,"features":"[\"default\"]","target":17781475209714866777,"profile":6299028598154287785,"path":7643067813021162563,"deps":[],"local":[{"CheckDepInfo":{"dep_info":"debug/.fingerprint/unicode-xid-373664510327a5cc/dep-lib-unicode-xid"}}],"rustflags":["-lrte_eal","-lrte_ring","-lrte_mempool","-lrte_cfgfile"],"metadata":8984739024795042354,"config":0}

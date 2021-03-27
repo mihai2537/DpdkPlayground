@@ -1,0 +1,1 @@
+/home/mihai/DPDK/playground/rust_stuff/static_functions_bindgen/target/debug/static_functions_bindgen: /home/mihai/DPDK/playground/rust_stuff/static_functions_bindgen/build.rs /home/mihai/DPDK/playground/rust_stuff/static_functions_bindgen/src/bindingsInline.rs /home/mihai/DPDK/playground/rust_stuff/static_functions_bindgen/src/main.rs
