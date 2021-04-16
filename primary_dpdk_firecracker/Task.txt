@@ -1,0 +1,9 @@
+1) Let's inspect why the following are different: rte_pktmbuf_pool_create, rte_mempool_create
+
+Couldn't fix it.
+
+2) Configure Rust on qemu VM.
+
+
+
+

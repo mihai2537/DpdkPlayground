@@ -8,8 +8,10 @@ fn main() {
     // println!("cargo:rerun-if-changed=wrapper.h");
 
     let _src = ["src/static-functions.c"];
+    println!("cargo:rerun-if-changed=build.rs");
 
     let mut builder = cc::Build::new();
+
     let build = builder
         .file("src/static-functions.c")
         .flag("-Wno-unused-parameter");
