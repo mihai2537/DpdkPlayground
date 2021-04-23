@@ -1,27 +1,41 @@
 
 How to build:
 
-make reader
 make server
+For reader, check: https://github.com/mihaidogaru2537/FirecrackerPlayground/tree/dpdk_component
+Reader is the DPDK Secondary from firecracker.
+
 ----------------------------------------------
 How to use:
 
 First start server by doing: sudo ./server -l 1
-Second: sudo ./reader -l 1 --proc-type=secondary
+Reader is supposed to be the DPDK Secondary from Firecracker. Ignore reader program from here.
 
-Now send packets to the NIC used by server, you shall see that the reader is able
-to receive them too.
 -----------------------------------------------------
 server.c
 
-Here the DPDK App is polling the ETH RX buffer.
-Received packets are sent to the reader app.
+This is the DPDK primary which is comunicating with DPDK Secondary from Firecracker.
+
+Received mbufs from shared ring.
+Sends those packets to port.
+
+Receives mbufs from port.
+Puts those packets on shared ring.
+
+
+Secondary -> Shared Ring -> Primary -> Port (Fully implemented)
+
+Port -> Primary -> Shared Ring -> Secondary (Developing)
+
+(Only port -> primary implemented so far)
+
 ---------------------------------------------------------------
 reader.c
 
-Here the reader app is polling the receive ring buffer for upcoming
-packets from the DPDK app.
+Not used, the reader is secondary dpdk form Firecracker.
+
 ------------------------------------------------------------
 shmem.h
 
 Just a few defines used in both server and reader.
+Used the same macros inside secondary from Firecracker.

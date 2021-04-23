@@ -183,6 +183,23 @@ port_init(uint16_t port, struct rte_mempool *mbuf_pool)
 	return 0;
 }
 
+static void
+print_buf_packet(struct rte_mbuf* mbuf)
+{
+	unsigned char* my_packet;
+	uint16_t data_len;
+	uint16_t i = 0;
+
+	my_packet = ((unsigned char *)(*(struct rte_mbuf *)mbuf).buf_addr) + ((struct rte_mbuf *)mbuf)->data_off;
+	data_len = ((struct rte_mbuf *)mbuf)->data_len;
+
+	for (i = 0; i < data_len; i++) {
+		printf("%02x ", (uint8_t)my_packet[i]);
+	}
+	printf("\n");
+}
+
+
 /*
  * The lcore main. This is the main thread that does the work.
  * Packet comes on RX buffer then it is sent to reader app.
@@ -215,48 +232,46 @@ lcore_main(void)
 	/* Run until the application is quit or killed. */
 	for (;;)
 	{
-		// receive packets on rte ring
-		// then send them to NIC
-
-
-		struct rte_mbuf *bufs[BURST_SIZE];
 		void *mbuf;
-		unsigned char* my_packet;
-		uint16_t data_len;
+
+
+		// If I get something from secondary app, I forward it to the port.
+		if (rte_ring_dequeue(recv_ring, &mbuf) >= 0) {
+
+			struct rte_mbuf *bufs[BURST_SIZE];
+			
+			printf("Received mbuf from SECONDARY.\n");
+			print_buf_packet(mbuf);
+
+			//* Send packet to port */
+			bufs[0] = (struct rte_mbuf *)mbuf;
+			uint16_t nbPackets = 1;
+			const uint16_t nb_tx = rte_eth_tx_burst(port, 0,
+													bufs, nbPackets);
+
+			// /* Free any unsent packets. */
+			if (unlikely(nb_tx < nbPackets))
+			{	
+				printf("Nu s-a trimis pachetul.\n");
+				rte_pktmbuf_free(bufs[nbPackets]);
+			}
+		}
+
 		uint16_t i = 0;
+		struct rte_mbuf *received_bufs[BURST_SIZE];
+		const uint16_t nb_rx = rte_eth_rx_burst(port, 0, received_bufs, BURST_SIZE);
 
-		if (rte_ring_dequeue(recv_ring, &mbuf) < 0) {
+		if (unlikely(nb_rx == 0))
 			continue;
+		
+		//Here it means that I have some stuff to send to secondary.
+		//Let's see if this works!
+		printf("Received mbufs from PORT! Count: %d\n", nb_rx);
+		
+		for (i = 0; i < nb_rx; i++) {
+			print_buf_packet(received_bufs[i]);
+			rte_pktmbuf_free(received_bufs[i]);
 		}
-
-		printf("Received mbuf.\n");
-		my_packet = ((unsigned char *)(*(struct rte_mbuf *)mbuf).buf_addr) + ((struct rte_mbuf *)mbuf)->data_off;
-		data_len = ((struct rte_mbuf *)mbuf)->data_len;
-		for (i = 0; i < data_len; i++) {
-			printf("%02x ", (uint8_t)my_packet[i]);
-		}
-		printf("\n");
-
-
-
-		//for now I just want to test it out so I stop here
-		// rte_pktmbuf_free(mbuf);
-		// continue;
-
-		//* Send packet to port */
-		bufs[0] = (struct rte_mbuf *)mbuf;
-		uint16_t nbPackets = 1;
-		const uint16_t nb_tx = rte_eth_tx_burst(port, 0,
-												bufs, nbPackets);
-
-		// /* Free any unsent packets. */
-		if (unlikely(nb_tx < nbPackets))
-		{	
-			printf("Nu s-a trimis pachetul.\n");
-			rte_pktmbuf_free(bufs[nbPackets]);
-		}
-
-
 
 		/// OLD
 		// struct rte_mbuf *bufs[BURST_SIZE];
