@@ -221,17 +221,30 @@ lcore_main(void)
 
 		struct rte_mbuf *bufs[BURST_SIZE];
 		void *mbuf;
+		unsigned char* my_packet;
+		uint16_t data_len;
+		uint16_t i = 0;
 
 		if (rte_ring_dequeue(recv_ring, &mbuf) < 0) {
 			continue;
 		}
 
 		printf("Received mbuf.\n");
+		my_packet = ((unsigned char *)(*(struct rte_mbuf *)mbuf).buf_addr) + ((struct rte_mbuf *)mbuf)->data_off;
+		data_len = ((struct rte_mbuf *)mbuf)->data_len;
+		for (i = 0; i < data_len; i++) {
+			printf("%02x ", (uint8_t)my_packet[i]);
+		}
+		printf("\n");
+
+
+
 		//for now I just want to test it out so I stop here
-		continue;
+		// rte_pktmbuf_free(mbuf);
+		// continue;
 
 		//* Send packet to port */
-		bufs[0] = mbuf;
+		bufs[0] = (struct rte_mbuf *)mbuf;
 		uint16_t nbPackets = 1;
 		const uint16_t nb_tx = rte_eth_tx_burst(port, 0,
 												bufs, nbPackets);
@@ -239,6 +252,7 @@ lcore_main(void)
 		// /* Free any unsent packets. */
 		if (unlikely(nb_tx < nbPackets))
 		{	
+			printf("Nu s-a trimis pachetul.\n");
 			rte_pktmbuf_free(bufs[nbPackets]);
 		}
 
