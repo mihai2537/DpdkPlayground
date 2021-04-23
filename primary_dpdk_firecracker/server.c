@@ -263,14 +263,22 @@ lcore_main(void)
 
 		if (unlikely(nb_rx == 0))
 			continue;
-		
+
 		//Here it means that I have some stuff to send to secondary.
 		//Let's see if this works!
 		printf("Received mbufs from PORT! Count: %d\n", nb_rx);
 		
 		for (i = 0; i < nb_rx; i++) {
 			print_buf_packet(received_bufs[i]);
-			rte_pktmbuf_free(received_bufs[i]);
+
+
+			if (rte_ring_enqueue(send_ring, (void *)received_bufs[i]) == 0) {
+				printf("Packet was put into sending queue.\n");
+			} else {
+				printf("Packet was NOT put into sending queue.\n");
+				rte_pktmbuf_free(received_bufs[i]);
+			}
+			// rte_pktmbuf_free(received_bufs[i]);
 		}
 
 		/// OLD
