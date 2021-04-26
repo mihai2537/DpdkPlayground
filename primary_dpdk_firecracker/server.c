@@ -240,8 +240,8 @@ lcore_main(void)
 
 			struct rte_mbuf *bufs[BURST_SIZE];
 			
-			printf("Received mbuf from SECONDARY.\n");
-			print_buf_packet(mbuf);
+			// printf("Received mbuf from SECONDARY.\n");
+			// print_buf_packet(mbuf);
 
 			//* Send packet to port */
 			bufs[0] = (struct rte_mbuf *)mbuf;
@@ -252,7 +252,7 @@ lcore_main(void)
 			// /* Free any unsent packets. */
 			if (unlikely(nb_tx < nbPackets))
 			{	
-				printf("Nu s-a trimis pachetul.\n");
+				// printf("Nu s-a trimis pachetul.\n");
 				rte_pktmbuf_free(bufs[nbPackets]);
 			}
 		}
@@ -266,43 +266,20 @@ lcore_main(void)
 
 		//Here it means that I have some stuff to send to secondary.
 		//Let's see if this works!
-		printf("Received mbufs from PORT! Count: %d\n", nb_rx);
+		// printf("Received mbufs from PORT! Count: %d\n", nb_rx);
 		
 		for (i = 0; i < nb_rx; i++) {
-			print_buf_packet(received_bufs[i]);
+			// print_buf_packet(received_bufs[i]);
 
 
 			if (rte_ring_enqueue(send_ring, (void *)received_bufs[i]) == 0) {
-				printf("Packet was put into sending queue.\n");
+				// printf("Packet was put into sending queue.\n");
 			} else {
-				printf("Packet was NOT put into sending queue.\n");
+				// printf("Packet was NOT put into sending queue.\n");
 				rte_pktmbuf_free(received_bufs[i]);
 			}
-			// rte_pktmbuf_free(received_bufs[i]);
 		}
 
-		/// OLD
-		// struct rte_mbuf *bufs[BURST_SIZE];
-		// const uint16_t nb_rx = rte_eth_rx_burst(port, 0,
-		// 										bufs, BURST_SIZE);
-
-		// if (unlikely(nb_rx == 0))
-		// 	continue;
-
-		// printf("Number of packets received: %d\n", nb_rx);
-		// // Now do something with the received data.
-		// for (i = 0; i < nb_rx; i++)
-		// {
-		// 	mbuf = bufs[i];
-		// 	if (rte_ring_enqueue(send_ring, (void *)mbuf) == 0)
-		// 	{
-		// 		printf("Packet was put into queue.\n");
-		// 	}
-		// 	else
-		// 	{
-		// 		printf("Couldn't put packet into queue.\n");
-		// 	}
-		// }
 	}
 }
 
