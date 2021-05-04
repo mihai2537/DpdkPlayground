@@ -259,12 +259,13 @@ lcore_main(void)
 	struct rte_eth_dev_info dev_info;
 
 	int rez = rte_eth_dev_info_get(port, &dev_info);
-	if (rez == 0) {
-		printf("Rx offload capa: %ld\n", dev_info.rx_offload_capa);
-		printf("Tx offloag capa: %ld\n", dev_info.tx_offload_capa);
+	// Commented out
+	// if (rez == 0) {
+	// 	printf("Rx offload capa: %ld\n", dev_info.rx_offload_capa);
+	// 	printf("Tx offloag capa: %ld\n", dev_info.tx_offload_capa);
 
-		printf("I am capable (not necessarily doing it) of tcp checksum offload: %ld\n", dev_info.tx_offload_capa & DEV_TX_OFFLOAD_TCP_CKSUM);
-	}
+	// 	printf("I am capable (not necessarily doing it) of tcp checksum offload: %ld\n", dev_info.tx_offload_capa & DEV_TX_OFFLOAD_TCP_CKSUM);
+	// }
 
 	struct rte_gso_ctx my_gso_ctx;
 	my_gso_ctx.direct_pool = message_pool;
@@ -293,7 +294,8 @@ lcore_main(void)
 
 			//* Send packet to port */
 			bufs[0] = (struct rte_mbuf *)mbuf;
-			printf("Received mbuf from SECONDARY. Size: %d\n", bufs[0]->data_len);
+			// Commented out
+			// printf("Received mbuf from SECONDARY. Size: %d\n", bufs[0]->data_len);
 
 
 			// set the offload flags for TCP Checksum to be done.
@@ -306,9 +308,10 @@ lcore_main(void)
 				bufs[0]->l4_len = sizeof(struct rte_tcp_hdr);
 				bufs[0]->tso_segsz = 1514;
 			}
-
-			if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_TCP_TSO != 0 && enable_gso != 0) {
-				printf("Checking GSO.\n");
+			
+			if (((dev_info.tx_offload_capa & DEV_TX_OFFLOAD_TCP_TSO) == 0) && enable_gso != 0) {
+				// Commented out
+				// printf("Checking GSO.\n");
 				gso_worked = rte_gso_segment(bufs[0], &my_gso_ctx, bufs_gsoed, BURST_SIZE);
 			}
 
@@ -332,7 +335,8 @@ lcore_main(void)
 				}
 			} else {
 				// means the packet did not need to GSO.
-				printf("NO GSO.\n");
+				// Commented out
+				// printf("NO GSO.\n");
 				uint16_t nbPackets = 1;
 				const uint16_t nb_tx = rte_eth_tx_burst(port, 0,
 														bufs, nbPackets);
@@ -340,10 +344,12 @@ lcore_main(void)
 				// /* Free any unsent packets. */
 				if (unlikely(nb_tx < nbPackets))
 				{	
-					printf("Nu s-a trimis pachetul.\n");
+					// Commented out
+					// printf("Nu s-a trimis pachetul.\n");
 					rte_pktmbuf_free(bufs[nbPackets]);
 				}
-				printf("Packet SENT to PORT.\n");
+				// Commented out
+				// printf("Packet SENT to PORT.\n");
 			}
 		}
 
@@ -356,16 +362,19 @@ lcore_main(void)
 
 		//Here it means that I have some stuff to send to secondary.
 		//Let's see if this works!
-		printf("Received mbufs from PORT! Count: %d\n", nb_rx);
+		// Commented out
+		// printf("Received mbufs from PORT! Count: %d\n", nb_rx);
 		
 		for (i = 0; i < nb_rx; i++) {
 			// print_buf_packet(received_bufs[i]);
 
 
 			if (rte_ring_enqueue(send_ring, (void *)received_bufs[i]) == 0) {
-				printf("Packet %d was PUT into SENDING Q. Size: %d\n", i, received_bufs[i]->data_len);
+				// Commented out
+				// printf("Packet %d was PUT into SENDING Q. Size: %d\n", i, received_bufs[i]->data_len);
 			} else {
-				printf("Packet %d was NOT put into sending queue.\n", i);
+				// Commented out
+				// printf("Packet %d was NOT put into sending queue.\n", i);
 				rte_pktmbuf_free(received_bufs[i]);
 			}
 		}
