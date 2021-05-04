@@ -5,7 +5,7 @@ READER = reader
 SRCS_SERVER-y := server.c
 SRCS_READER-y := reader.c
 
-CFLAGS += -O3 $(shell $(PKGCONF) --cflags libdpdk)
+CFLAGS += -g -O3 $(shell $(PKGCONF) --cflags libdpdk)
 LDFLAGS += $(shell $(PKGCONF) --libs libdpdk)
 
 $(SERVER): $(SRCS_SERVER-y) Makefile

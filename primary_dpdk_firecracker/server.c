@@ -20,6 +20,8 @@
 #include <semaphore.h>
 #include <string.h>
 #include <signal.h>
+
+#include <rte_gso.h>
 #include "shmem.h"
 
 #define RX_RING_SIZE 1024
@@ -105,6 +107,27 @@ port_init(uint16_t port, struct rte_mempool *mbuf_pool)
 		port_conf.txmode.offloads |=
 			DEV_TX_OFFLOAD_MBUF_FAST_FREE;
 
+	if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_TCP_CKSUM) {
+		printf("Am setat CRC pt TX\n");
+		port_conf.txmode.offloads |= DEV_TX_OFFLOAD_TCP_CKSUM;
+	}
+
+	if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_TCP_TSO) {
+		printf("Am setat TSO pt TX\n");
+		port_conf.txmode.offloads |= DEV_TX_OFFLOAD_TCP_TSO;
+	} else {
+		printf("NU am setat TSO pt TX");
+	}
+
+	if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_IPV4_CKSUM) {
+		printf("Am setat Checksum pe IPV4\n");
+		port_conf.txmode.offloads |= DEV_TX_OFFLOAD_IPV4_CKSUM;
+	}
+
+	printf("I am capable of fast mbuf free: %ld\n", dev_info.tx_offload_capa & DEV_TX_OFFLOAD_MBUF_FAST_FREE);
+	printf("My TX offloads are: %ld\n", port_conf.txmode.offloads);
+	printf("My RX offloads are: %ld\n", port_conf.rxmode.offloads);
+
 	/* Configure the Ethernet device. */
 	retval = rte_eth_dev_configure(port, rx_rings, tx_rings, &port_conf);
 	if (retval != 0)
@@ -136,6 +159,9 @@ port_init(uint16_t port, struct rte_mempool *mbuf_pool)
 
 	txconf = dev_info.default_txconf;
 	txconf.offloads = port_conf.txmode.offloads;
+
+	printf("Txconf for txqueue are: %ld\n", txconf.offloads);
+
 	/* Allocate and set up 1 TX queue per Ethernet port. */
 	for (q = 0; q < tx_rings; q++)
 	{
@@ -204,6 +230,7 @@ print_buf_packet(struct rte_mbuf* mbuf)
  * The lcore main. This is the main thread that does the work.
  * Packet comes on RX buffer then it is sent to reader app.
  */
+
 static __rte_noreturn void
 lcore_main(void)
 {
@@ -229,31 +256,94 @@ lcore_main(void)
 
 	port = rte_eth_find_next_owned_by(0, RTE_ETH_DEV_NO_OWNER);
 
+	struct rte_eth_dev_info dev_info;
+
+	int rez = rte_eth_dev_info_get(port, &dev_info);
+	if (rez == 0) {
+		printf("Rx offload capa: %ld\n", dev_info.rx_offload_capa);
+		printf("Tx offloag capa: %ld\n", dev_info.tx_offload_capa);
+
+		printf("I am capable (not necessarily doing it) of tcp checksum offload: %ld\n", dev_info.tx_offload_capa & DEV_TX_OFFLOAD_TCP_CKSUM);
+	}
+
+	struct rte_gso_ctx my_gso_ctx;
+	my_gso_ctx.direct_pool = message_pool;
+	my_gso_ctx.indirect_pool = message_pool;
+	my_gso_ctx.gso_types = DEV_TX_OFFLOAD_TCP_TSO;
+	my_gso_ctx.gso_size = 1514;
+
+	// FLAG FOR ENABLE SOFTWARE GSO MANUALLY
+	// set to 1 if you wish to do software fragmentation if hardware cannot offload
+	int enable_gso = 0;
+
 	/* Run until the application is quit or killed. */
 	for (;;)
 	{
 		void *mbuf;
+		int gso_worked = 0;
 
 
 		// If I get something from secondary app, I forward it to the port.
 		if (rte_ring_dequeue(recv_ring, &mbuf) >= 0) {
 
 			struct rte_mbuf *bufs[BURST_SIZE];
-			
-			printf("Received mbuf from SECONDARY.\n");
-			print_buf_packet(mbuf);
+			struct rte_mbuf *bufs_gsoed[BURST_SIZE];
+
+			// print_buf_packet(mbuf);		
 
 			//* Send packet to port */
 			bufs[0] = (struct rte_mbuf *)mbuf;
-			uint16_t nbPackets = 1;
-			const uint16_t nb_tx = rte_eth_tx_burst(port, 0,
-													bufs, nbPackets);
+			printf("Received mbuf from SECONDARY. Size: %d\n", bufs[0]->data_len);
 
-			// /* Free any unsent packets. */
-			if (unlikely(nb_tx < nbPackets))
-			{	
-				printf("Nu s-a trimis pachetul.\n");
-				rte_pktmbuf_free(bufs[nbPackets]);
+
+			// set the offload flags for TCP Checksum to be done.
+			bufs[0]->ol_flags = PKT_TX_TCP_CKSUM;
+
+			if (bufs[0]->data_len > 1514) {
+				bufs[0]->ol_flags |= PKT_TX_TCP_SEG | PKT_TX_IPV4 | PKT_TX_IP_CKSUM;
+				bufs[0]->l2_len = sizeof(struct rte_ether_hdr);
+				bufs[0]->l3_len = sizeof(struct rte_ipv4_hdr);
+				bufs[0]->l4_len = sizeof(struct rte_tcp_hdr);
+				bufs[0]->tso_segsz = 1514;
+			}
+
+			if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_TCP_TSO != 0 && enable_gso != 0) {
+				printf("Checking GSO.\n");
+				gso_worked = rte_gso_segment(bufs[0], &my_gso_ctx, bufs_gsoed, BURST_SIZE);
+			}
+
+			if (gso_worked < 0 || gso_worked > 0) {
+				// the packet needed to do GSO
+				if (gso_worked < 0) {
+					// IF it did not work
+					printf("GSO Failed\n");
+					rte_pktmbuf_free(bufs[0]);
+				} else {
+					printf("GSO worked.\n");
+					// otherwise GSO worked, now send the packets.
+					uint16_t nrPackets = gso_worked;
+					const uint16_t nb_tx = rte_eth_tx_burst(port, 0, bufs_gsoed, nrPackets);
+					if (unlikely(nb_tx < nrPackets)) {
+						int i = 0;
+						for (i = nb_tx; i < nrPackets; i++) {
+							rte_pktmbuf_free(bufs_gsoed[i]);
+						}
+					}
+				}
+			} else {
+				// means the packet did not need to GSO.
+				printf("NO GSO.\n");
+				uint16_t nbPackets = 1;
+				const uint16_t nb_tx = rte_eth_tx_burst(port, 0,
+														bufs, nbPackets);
+
+				// /* Free any unsent packets. */
+				if (unlikely(nb_tx < nbPackets))
+				{	
+					printf("Nu s-a trimis pachetul.\n");
+					rte_pktmbuf_free(bufs[nbPackets]);
+				}
+				printf("Packet SENT to PORT.\n");
 			}
 		}
 
@@ -269,16 +359,15 @@ lcore_main(void)
 		printf("Received mbufs from PORT! Count: %d\n", nb_rx);
 		
 		for (i = 0; i < nb_rx; i++) {
-			print_buf_packet(received_bufs[i]);
+			// print_buf_packet(received_bufs[i]);
 
 
 			if (rte_ring_enqueue(send_ring, (void *)received_bufs[i]) == 0) {
-				printf("Packet was put into sending queue.\n");
+				printf("Packet %d was PUT into SENDING Q. Size: %d\n", i, received_bufs[i]->data_len);
 			} else {
-				printf("Packet was NOT put into sending queue.\n");
+				printf("Packet %d was NOT put into sending queue.\n", i);
 				rte_pktmbuf_free(received_bufs[i]);
 			}
-			// rte_pktmbuf_free(received_bufs[i]);
 		}
 
 		/// OLD
@@ -324,8 +413,15 @@ void init_stuff()
 										   NUM_MBUFS * 1,			  // number of elements
 										   MBUF_CACHE_SIZE,			  // cache size
 										   0,						  // priv size
-										   RTE_MBUF_DEFAULT_BUF_SIZE, // size of data buffer including headroom
+										   65500, // size of data buffer including headroom
 										   rte_socket_id());		  // socket where the memory should be allocated
+
+	// message_pool = rte_pktmbuf_pool_create(MSG_POOL,				  // name of the pool
+	// 									   NUM_MBUFS * 1,			  // number of elements
+	// 									   MBUF_CACHE_SIZE,			  // cache size
+	// 									   0,						  // priv size
+	// 									   RTE_MBUF_DEFAULT_BUF_SIZE, // size of data buffer including headroom
+	// 									   rte_socket_id());		  // socket where the memory should be allocated
 
 	//why this DID NOT WORK?
 
