@@ -1,0 +1,7 @@
+When you try to the TCP Segmentation software wise,
+theere are lots of retransmisions, working very badly.
+
+It does not seem to fail at rte_eth_tx_burst.
+
+My suspicion is that it sleeps a lot inside the rte_gso_segment function.
+Maybe it will work better on more powerful hardware.

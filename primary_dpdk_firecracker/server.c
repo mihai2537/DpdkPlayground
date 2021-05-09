@@ -301,14 +301,16 @@ lcore_main(void)
 			// set the offload flags for TCP Checksum to be done.
 			bufs[0]->ol_flags = PKT_TX_TCP_CKSUM;
 
-			if (bufs[0]->data_len > 1514) {
+
+			// old condition : bufs[0]->data_len >= 1500
+			if (enable_gso == 1) {
 				bufs[0]->ol_flags |= PKT_TX_TCP_SEG | PKT_TX_IPV4 | PKT_TX_IP_CKSUM;
 				bufs[0]->l2_len = sizeof(struct rte_ether_hdr);
 				bufs[0]->l3_len = sizeof(struct rte_ipv4_hdr);
 				bufs[0]->l4_len = sizeof(struct rte_tcp_hdr);
-				bufs[0]->tso_segsz = 1514;
+				bufs[0]->tso_segsz = 1500;
 			}
-			
+
 			if (((dev_info.tx_offload_capa & DEV_TX_OFFLOAD_TCP_TSO) == 0) && enable_gso != 0) {
 				// Commented out
 				// printf("Checking GSO.\n");
@@ -328,6 +330,7 @@ lcore_main(void)
 					const uint16_t nb_tx = rte_eth_tx_burst(port, 0, bufs_gsoed, nrPackets);
 					if (unlikely(nb_tx < nrPackets)) {
 						int i = 0;
+						printf("GSO TX BUFF FAILED.\n");
 						for (i = nb_tx; i < nrPackets; i++) {
 							rte_pktmbuf_free(bufs_gsoed[i]);
 						}
