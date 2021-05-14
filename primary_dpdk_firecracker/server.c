@@ -199,12 +199,23 @@ port_init(uint16_t port, struct rte_mempool *mbuf_pool)
 		   addr.addr_bytes[4], addr.addr_bytes[5]);
 
 	/* Enable RX in promiscuous mode for the Ethernet device. */
-	retval = rte_eth_promiscuous_enable(port);
-	if (retval != 0)
-	{
-		printf("Problem at: rte_eth_promiscuous_enable\n");
-		return retval;
-	}
+	// retval = rte_eth_promiscuous_enable(port);
+	// if (retval != 0)
+	// {
+	// 	printf("Problem at: rte_eth_promiscuous_enable\n");
+	// 	printf("%s\n", rte_strerror(rte_errno));
+	// 	printf("Error code: %d\n", retval);
+	// 	ENOTSUP
+	// 	return retval;
+	// }
+
+	// added
+	// retval = rte_eth_dev_set_mtu(port, (uint16_t)9000);
+	// if (retval != 0) {
+	// 	printf("Problem with setting MTU: %d\n", retval);
+	// 	// Eroarea e -22 care inseamna EINVAL
+	// 	return retval;
+	// }
 
 	return 0;
 }
@@ -290,7 +301,8 @@ lcore_main(void)
 			struct rte_mbuf *bufs[BURST_SIZE];
 			struct rte_mbuf *bufs_gsoed[BURST_SIZE];
 
-			// print_buf_packet(mbuf);		
+			// print_buf_packet(mbuf);	
+			// printf("Got from Secondary.\n");	
 
 			//* Send packet to port */
 			bufs[0] = (struct rte_mbuf *)mbuf;
@@ -348,7 +360,7 @@ lcore_main(void)
 				if (unlikely(nb_tx < nbPackets))
 				{	
 					// Commented out
-					// printf("Nu s-a trimis pachetul.\n");
+					printf("Nu s-a trimis pachetul.\n");
 					rte_pktmbuf_free(bufs[nbPackets]);
 				}
 				// Commented out
