@@ -108,7 +108,7 @@ port_init(uint16_t port, struct rte_mempool *mbuf_pool)
 			DEV_TX_OFFLOAD_MBUF_FAST_FREE;
 
 	if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_TCP_CKSUM) {
-		printf("Am setat CRC pt TX\n");
+		printf("Am setat Checksum pt TX\n");
 		port_conf.txmode.offloads |= DEV_TX_OFFLOAD_TCP_CKSUM;
 	}
 
@@ -116,17 +116,13 @@ port_init(uint16_t port, struct rte_mempool *mbuf_pool)
 		printf("Am setat TSO pt TX\n");
 		port_conf.txmode.offloads |= DEV_TX_OFFLOAD_TCP_TSO;
 	} else {
-		printf("NU am setat TSO pt TX");
+		printf("NU am setat TSO pt TX\n");
 	}
 
 	if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_IPV4_CKSUM) {
 		printf("Am setat Checksum pe IPV4\n");
 		port_conf.txmode.offloads |= DEV_TX_OFFLOAD_IPV4_CKSUM;
 	}
-
-	printf("I am capable of fast mbuf free: %ld\n", dev_info.tx_offload_capa & DEV_TX_OFFLOAD_MBUF_FAST_FREE);
-	printf("My TX offloads are: %ld\n", port_conf.txmode.offloads);
-	printf("My RX offloads are: %ld\n", port_conf.rxmode.offloads);
 
 	/* Configure the Ethernet device. */
 	retval = rte_eth_dev_configure(port, rx_rings, tx_rings, &port_conf);
@@ -267,117 +263,50 @@ lcore_main(void)
 
 	port = rte_eth_find_next_owned_by(0, RTE_ETH_DEV_NO_OWNER);
 
-	struct rte_eth_dev_info dev_info;
-
-	int rez = rte_eth_dev_info_get(port, &dev_info);
-	// Commented out
-	// if (rez == 0) {
-	// 	printf("Rx offload capa: %ld\n", dev_info.rx_offload_capa);
-	// 	printf("Tx offloag capa: %ld\n", dev_info.tx_offload_capa);
-
-	// 	printf("I am capable (not necessarily doing it) of tcp checksum offload: %ld\n", dev_info.tx_offload_capa & DEV_TX_OFFLOAD_TCP_CKSUM);
-	// }
-
-	struct rte_gso_ctx my_gso_ctx;
-	my_gso_ctx.direct_pool = message_pool;
-	my_gso_ctx.indirect_pool = message_pool;
-	my_gso_ctx.gso_types = DEV_TX_OFFLOAD_TCP_TSO;
-	my_gso_ctx.gso_size = 1514;
-
-	// FLAG FOR ENABLE SOFTWARE GSO MANUALLY
-	// set to 1 if you wish to do software fragmentation if hardware cannot offload
-	int enable_gso = 0;
-
 	/* Run until the application is quit or killed. */
 	for (;;)
 	{
 		void *mbuf;
-		int gso_worked = 0;
-
 
 		// If I get something from secondary app, I forward it to the port.
 		if (rte_ring_dequeue(recv_ring, &mbuf) >= 0) {
 
 			struct rte_mbuf *bufs[BURST_SIZE];
-			struct rte_mbuf *bufs_gsoed[BURST_SIZE];
 
 			// print_buf_packet(mbuf);	
 			// printf("Got from Secondary.\n");	
 
-			//* Send packet to port */
 			bufs[0] = (struct rte_mbuf *)mbuf;
-			// Commented out
 			// printf("Received mbuf from SECONDARY. Size: %d\n", bufs[0]->data_len);
 
 
 			// set the offload flags for TCP Checksum to be done.
 			bufs[0]->ol_flags = PKT_TX_TCP_CKSUM;
 
+			// means the packet did not need to GSO.
+			// printf("NO GSO.\n");
+			uint16_t nbPackets = 1;
+			const uint16_t nb_tx = rte_eth_tx_burst(port, 0,
+													bufs, nbPackets);
 
-			// old condition : bufs[0]->data_len >= 1500
-			if (enable_gso == 1) {
-				bufs[0]->ol_flags |= PKT_TX_TCP_SEG | PKT_TX_IPV4 | PKT_TX_IP_CKSUM;
-				bufs[0]->l2_len = sizeof(struct rte_ether_hdr);
-				bufs[0]->l3_len = sizeof(struct rte_ipv4_hdr);
-				bufs[0]->l4_len = sizeof(struct rte_tcp_hdr);
-				bufs[0]->tso_segsz = 1500;
-			}
-
-			if (((dev_info.tx_offload_capa & DEV_TX_OFFLOAD_TCP_TSO) == 0) && enable_gso != 0) {
+			// /* Free any unsent packets. */
+			if (unlikely(nb_tx < nbPackets))
+			{	
 				// Commented out
-				// printf("Checking GSO.\n");
-				gso_worked = rte_gso_segment(bufs[0], &my_gso_ctx, bufs_gsoed, BURST_SIZE);
+				printf("Nu s-a trimis pachetul.\n");
+				rte_pktmbuf_free(bufs[nbPackets]);
 			}
+			// printf("Packet SENT to PORT.\n");
 
-			if (gso_worked < 0 || gso_worked > 0) {
-				// the packet needed to do GSO
-				if (gso_worked < 0) {
-					// IF it did not work
-					printf("GSO Failed\n");
-					rte_pktmbuf_free(bufs[0]);
-				} else {
-					printf("GSO worked.\n");
-					// otherwise GSO worked, now send the packets.
-					uint16_t nrPackets = gso_worked;
-					const uint16_t nb_tx = rte_eth_tx_burst(port, 0, bufs_gsoed, nrPackets);
-					if (unlikely(nb_tx < nrPackets)) {
-						int i = 0;
-						printf("GSO TX BUFF FAILED.\n");
-						for (i = nb_tx; i < nrPackets; i++) {
-							rte_pktmbuf_free(bufs_gsoed[i]);
-						}
-					}
-				}
-			} else {
-				// means the packet did not need to GSO.
-				// Commented out
-				// printf("NO GSO.\n");
-				uint16_t nbPackets = 1;
-				const uint16_t nb_tx = rte_eth_tx_burst(port, 0,
-														bufs, nbPackets);
-
-				// /* Free any unsent packets. */
-				if (unlikely(nb_tx < nbPackets))
-				{	
-					// Commented out
-					printf("Nu s-a trimis pachetul.\n");
-					rte_pktmbuf_free(bufs[nbPackets]);
-				}
-				// Commented out
-				// printf("Packet SENT to PORT.\n");
-			}
 		}
 
+		// Get data from port and send it to secondary
 		uint16_t i = 0;
 		struct rte_mbuf *received_bufs[BURST_SIZE];
 		const uint16_t nb_rx = rte_eth_rx_burst(port, 0, received_bufs, BURST_SIZE);
 
 		if (unlikely(nb_rx == 0))
 			continue;
-
-		//Here it means that I have some stuff to send to secondary.
-		//Let's see if this works!
-		// Commented out
 		// printf("Received mbufs from PORT! Count: %d\n", nb_rx);
 		
 		for (i = 0; i < nb_rx; i++) {
@@ -393,29 +322,6 @@ lcore_main(void)
 				rte_pktmbuf_free(received_bufs[i]);
 			}
 		}
-
-		/// OLD
-		// struct rte_mbuf *bufs[BURST_SIZE];
-		// const uint16_t nb_rx = rte_eth_rx_burst(port, 0,
-		// 										bufs, BURST_SIZE);
-
-		// if (unlikely(nb_rx == 0))
-		// 	continue;
-
-		// printf("Number of packets received: %d\n", nb_rx);
-		// // Now do something with the received data.
-		// for (i = 0; i < nb_rx; i++)
-		// {
-		// 	mbuf = bufs[i];
-		// 	if (rte_ring_enqueue(send_ring, (void *)mbuf) == 0)
-		// 	{
-		// 		printf("Packet was put into queue.\n");
-		// 	}
-		// 	else
-		// 	{
-		// 		printf("Couldn't put packet into queue.\n");
-		// 	}
-		// }
 	}
 }
 
