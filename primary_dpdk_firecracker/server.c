@@ -294,7 +294,7 @@ lcore_main(void)
 			{	
 				// Commented out
 				printf("Nu s-a trimis pachetul.\n");
-				rte_pktmbuf_free(bufs[nbPackets]);
+				rte_pktmbuf_free(bufs[0]);
 			}
 			// printf("Packet SENT to PORT.\n");
 
