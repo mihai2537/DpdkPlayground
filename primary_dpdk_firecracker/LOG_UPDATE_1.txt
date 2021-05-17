@@ -1,0 +1,8 @@
+# On this branch I will try "Strategy_1"
+
+Idee:
+
+Hai sa fac primirea de pachete cat timp tot primesc pachete.
+
+Cat timp am reusit sa primesc ceva, de la secondary sau de pe port, continui
+sa cer date din locul respectiv si sa le forwardez.

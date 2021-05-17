@@ -194,16 +194,17 @@ port_init(uint16_t port, struct rte_mempool *mbuf_pool)
 		   addr.addr_bytes[2], addr.addr_bytes[3],
 		   addr.addr_bytes[4], addr.addr_bytes[5]);
 
+
 	/* Enable RX in promiscuous mode for the Ethernet device. */
-	// retval = rte_eth_promiscuous_enable(port);
-	// if (retval != 0)
-	// {
-	// 	printf("Problem at: rte_eth_promiscuous_enable\n");
-	// 	printf("%s\n", rte_strerror(rte_errno));
-	// 	printf("Error code: %d\n", retval);
-	// 	ENOTSUP
-	// 	return retval;
-	// }
+	retval = rte_eth_promiscuous_enable(port);
+	if (retval != 0)
+	{
+		printf("Problem at: rte_eth_promiscuous_enable\n");
+		printf("%s\n", rte_strerror(rte_errno));
+		printf("Error code: %d\n", retval);
+		// ENOTSUP
+		return retval;
+	}
 
 	// added
 	// retval = rte_eth_dev_set_mtu(port, (uint16_t)9000);
