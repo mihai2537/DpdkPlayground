@@ -6,3 +6,13 @@ Hai sa fac primirea de pachete cat timp tot primesc pachete.
 
 Cat timp am reusit sa primesc ceva, de la secondary sau de pe port, continui
 sa cer date din locul respectiv si sa le forwardez.
+
+Sunt doua ramuri:
+
+primesti de pe secondary -> trimiti pe port
+primesti de pe port -> trimiti pe secondary
+
+#1
+
+Am pus cele doua ramuri fiecare intr-un while, inainte erau in if.
+Aceleasi rezultate.

@@ -270,7 +270,7 @@ lcore_main(void)
 		void *mbuf;
 
 		// If I get something from secondary app, I forward it to the port.
-		if (rte_ring_dequeue(recv_ring, &mbuf) >= 0) {
+		while (rte_ring_dequeue(recv_ring, &mbuf) >= 0) {
 
 			struct rte_mbuf *bufs[BURST_SIZE];
 
@@ -304,24 +304,26 @@ lcore_main(void)
 		// Get data from port and send it to secondary
 		uint16_t i = 0;
 		struct rte_mbuf *received_bufs[BURST_SIZE];
-		const uint16_t nb_rx = rte_eth_rx_burst(port, 0, received_bufs, BURST_SIZE);
+		uint16_t nb_rx = rte_eth_rx_burst(port, 0, received_bufs, BURST_SIZE);
 
 		if (unlikely(nb_rx == 0))
 			continue;
-		// printf("Received mbufs from PORT! Count: %d\n", nb_rx);
 		
-		for (i = 0; i < nb_rx; i++) {
-			// print_buf_packet(received_bufs[i]);
+		while(nb_rx > 0) {
+			// printf("Received mbufs from PORT! Count: %d\n", nb_rx);
+			for (i = 0; i < nb_rx; i++) {
+				// print_buf_packet(received_bufs[i]);
 
-
-			if (rte_ring_enqueue(send_ring, (void *)received_bufs[i]) == 0) {
-				// Commented out
-				// printf("Packet %d was PUT into SENDING Q. Size: %d\n", i, received_bufs[i]->data_len);
-			} else {
-				// Commented out
-				// printf("Packet %d was NOT put into sending queue.\n", i);
-				rte_pktmbuf_free(received_bufs[i]);
+				if (rte_ring_enqueue(send_ring, (void *)received_bufs[i]) == 0) {
+					// Commented out
+					// printf("Packet %d was PUT into SENDING Q. Size: %d\n", i, received_bufs[i]->data_len);
+				} else {
+					// Commented out
+					// printf("Packet %d was NOT put into sending queue.\n", i);
+					rte_pktmbuf_free(received_bufs[i]);
+				}
 			}
+			nb_rx = rte_eth_rx_burst(port, 0, received_bufs, BURST_SIZE);
 		}
 	}
 }
