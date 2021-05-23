@@ -267,66 +267,45 @@ lcore_main(void)
 
 	port = rte_eth_find_next_owned_by(0, RTE_ETH_DEV_NO_OWNER);
 
+	int count_failed_enq = 0;
+
 	/* Run until the application is quit or killed. */
 	for (;;)
 	{
+		uint16_t i = 0;
 		void *mbuf;
+		struct rte_mbuf *bufs[BURST_SIZE];
+		unsigned int count = rte_ring_dequeue_burst(recv_ring, (void **)bufs, BURST_SIZE, NULL);
 
-		// If I get something from secondary app, I forward it to the port.
-		while (rte_ring_dequeue(recv_ring, &mbuf) >= 0) {
-
-			struct rte_mbuf *bufs[BURST_SIZE];
-
-			// print_buf_packet(mbuf);	
-			// printf("Got from Secondary.\n");	
-
-			bufs[0] = (struct rte_mbuf *)mbuf;
-			// printf("Received mbuf from SECONDARY. Size: %d\n", bufs[0]->data_len);
-
-
-			// set the offload flags for TCP Checksum to be done.
-			bufs[0]->ol_flags = PKT_TX_TCP_CKSUM;
-
-			// means the packet did not need to GSO.
-			// printf("NO GSO.\n");
-			uint16_t nbPackets = 1;
-			const uint16_t nb_tx = rte_eth_tx_burst(port, 0,
-													bufs, nbPackets);
-
-			// /* Free any unsent packets. */
-			if (unlikely(nb_tx < nbPackets))
-			{	
-				// Commented out
-				printf("Nu s-a trimis pachetul.\n");
-				rte_pktmbuf_free(bufs[nbPackets]);
-			}
-			// printf("Packet SENT to PORT.\n");
-
+		for (i = 0 ; i < count; i++) {
+			bufs[i]->ol_flags = PKT_TX_TCP_CKSUM;
 		}
 
+		const uint16_t nb_tx = rte_eth_tx_burst(port, 0, bufs, count);
+
+		if (unlikely(nb_tx < count)) {
+			for (i = nb_tx; i < count; i++) {
+				printf("Nu s-a trimis pachetul.\n");
+				rte_pktmbuf_free(bufs[i]);
+			}
+		}
+
+//-------------------------------------------------------------------------------
 		// Get data from port and send it to secondary
-		uint16_t i = 0;
 		struct rte_mbuf *received_bufs[BURST_SIZE];
 		uint16_t nb_rx = rte_eth_rx_burst(port, 0, received_bufs, BURST_SIZE);
 
 		if (unlikely(nb_rx == 0))
 			continue;
 
-		while(nb_rx > 0) {
-			// printf("Received mbufs from PORT! Count: %d\n", nb_rx);
-			for (i = 0; i < nb_rx; i++) {
-				// print_buf_packet(received_bufs[i]);
+		count = rte_ring_enqueue_burst(send_ring, (void * const *)received_bufs, nb_rx, NULL);
 
-				if (rte_ring_enqueue(send_ring, (void *)received_bufs[i]) == 0) {
-					// Commented out
-					// printf("Packet %d was PUT into SENDING Q. Size: %d\n", i, received_bufs[i]->data_len);
-				} else {
-					// Commented out
-					// printf("Packet %d was NOT put into sending queue.\n", i);
-					rte_pktmbuf_free(received_bufs[i]);
-				}
+		if (count < nb_rx) {
+			for (i = count; i < nb_rx; i++) {
+				count_failed_enq += 1;
+				// printf("Failed to enqueue %d\n", count_failed_enq);
+				rte_pktmbuf_free(received_bufs[i]);
 			}
-			nb_rx = rte_eth_rx_burst(port, 0, received_bufs, BURST_SIZE);
 		}
 	}
 }

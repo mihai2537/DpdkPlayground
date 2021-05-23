@@ -1,3 +1,15 @@
 On this branch I will try Strategy_2
 By doing burst enq / deq on the shared rings.
 
+iperf3 -c 10.2 -u -b 120000000 --repeating-payload
+
+
+Am descoperit ca daca nu ii dau maximum bandwidth, se comporta ceva mai bine
+si microVM-ul primeste pana la 10MB/s
+
+Dupa ce ii dau bandwidth mai mare de 10MB/s, dpdk primary incepe sa nu mai poata
+sa faca enqueue pachetelor.
+
+Probabil firecracker nu apuca sa la faca dequeue si se aglomereaza coada.
+
+Nu inteleg de ce totusi la TCP catre microVM merge cu vreo maxim 5MB/s.
