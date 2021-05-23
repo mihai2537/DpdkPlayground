@@ -24,8 +24,8 @@
 #include <rte_gso.h>
 #include "shmem.h"
 
-#define RX_RING_SIZE 1024
-#define TX_RING_SIZE 1024
+#define RX_RING_SIZE 2048
+#define TX_RING_SIZE 2048
 
 #define NUM_MBUFS 8191
 #define MBUF_CACHE_SIZE 250
@@ -35,7 +35,7 @@ struct rte_ring *send_ring, *recv_ring;
 struct rte_mempool *message_pool;
 
 const unsigned flags = 0;
-const unsigned ring_size = 64;
+const unsigned ring_size = 2048;
 const unsigned pool_size = 1024;
 const unsigned pool_cache = 32;
 const unsigned priv_data_sz = 0;
@@ -308,7 +308,7 @@ lcore_main(void)
 
 		if (unlikely(nb_rx == 0))
 			continue;
-		
+
 		while(nb_rx > 0) {
 			// printf("Received mbufs from PORT! Count: %d\n", nb_rx);
 			for (i = 0; i < nb_rx; i++) {
