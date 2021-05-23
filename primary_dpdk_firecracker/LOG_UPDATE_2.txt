@@ -1,0 +1,3 @@
+On this branch I will try Strategy_2
+By doing burst enq / deq on the shared rings.
+
