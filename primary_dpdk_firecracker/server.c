@@ -24,8 +24,8 @@
 #include <rte_gso.h>
 #include "shmem.h"
 
-#define RX_RING_SIZE 2048
-#define TX_RING_SIZE 2048
+#define RX_RING_SIZE 1024
+#define TX_RING_SIZE 1024
 
 #define NUM_MBUFS 8191
 #define MBUF_CACHE_SIZE 250
@@ -131,6 +131,9 @@ port_init(uint16_t port, struct rte_mempool *mbuf_pool)
 		printf("problem at: rte_eth_dev_configure\n");
 		return retval;
 	}
+
+	printf("Max RX descriptors: %d\n", dev_info.rx_desc_lim.nb_max);
+	printf("Max TX descriptors: %d\n", dev_info.tx_desc_lim.nb_max);
 
 	retval = rte_eth_dev_adjust_nb_rx_tx_desc(port, &nb_rxd, &nb_txd);
 	if (retval != 0)
@@ -330,13 +333,13 @@ lcore_main(void)
 
 void init_stuff()
 {
-	send_ring = rte_ring_create(PRI_2_SEC, ring_size, rte_socket_id(), flags);
+	send_ring = rte_ring_create(PRI_2_SEC, ring_size, rte_socket_id(), RING_F_SP_ENQ | RING_F_SC_DEQ);
 	if (send_ring == NULL)
 	{
 		report_and_exit("Send ring failed.\n");
 	}
 
-	recv_ring = rte_ring_create(SEC_2_PRI, ring_size, rte_socket_id(), flags);
+	recv_ring = rte_ring_create(SEC_2_PRI, ring_size, rte_socket_id(), RING_F_SP_ENQ | RING_F_SC_DEQ);
 	if (recv_ring == NULL)
 	{
 		report_and_exit("Recv ring failed.\n");

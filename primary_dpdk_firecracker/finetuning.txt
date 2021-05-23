@@ -1,0 +1,7 @@
+TODO:
+
+enable NUMA in bios
+Tx descriptors  = 4 x RX descriptors
+Check l3fwd.c
+
+Rx_free_thresh
