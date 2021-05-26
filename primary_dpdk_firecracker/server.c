@@ -268,25 +268,30 @@ lcore_main(void)
 	port = rte_eth_find_next_owned_by(0, RTE_ETH_DEV_NO_OWNER);
 
 	int count_failed_enq = 0;
-
+	int iteration = 0;
 	/* Run until the application is quit or killed. */
 	for (;;)
-	{
+	{	
+		iteration = (iteration + 1) % 10;
+
 		uint16_t i = 0;
 		void *mbuf;
 		struct rte_mbuf *bufs[BURST_SIZE];
 		unsigned int count = rte_ring_dequeue_burst(recv_ring, (void **)bufs, BURST_SIZE, NULL);
 
-		for (i = 0 ; i < count; i++) {
-			bufs[i]->ol_flags = PKT_TX_TCP_CKSUM;
-		}
+		if (count != 0) {
+			// printf("Count: %d\n", count);
+			// for (i = 0 ; i < count; i++) {
+			// 	bufs[i]->ol_flags = PKT_TX_TCP_CKSUM;
+			// }
 
-		const uint16_t nb_tx = rte_eth_tx_burst(port, 0, bufs, count);
+			const uint16_t nb_tx = rte_eth_tx_burst(port, 0, bufs, count);
 
-		if (unlikely(nb_tx < count)) {
-			for (i = nb_tx; i < count; i++) {
-				printf("Nu s-a trimis pachetul.\n");
-				rte_pktmbuf_free(bufs[i]);
+			if (unlikely(nb_tx < count)) {
+				for (i = nb_tx; i < count; i++) {
+					printf("Nu s-a trimis pachetul.\n");
+					rte_pktmbuf_free(bufs[i]);
+				}
 			}
 		}
 
@@ -294,19 +299,32 @@ lcore_main(void)
 		// Get data from port and send it to secondary
 		struct rte_mbuf *received_bufs[BURST_SIZE];
 		uint16_t nb_rx = rte_eth_rx_burst(port, 0, received_bufs, BURST_SIZE);
+		uint16_t total_recv = 0;
 
 		if (unlikely(nb_rx == 0))
 			continue;
 
 		count = rte_ring_enqueue_burst(send_ring, (void * const *)received_bufs, nb_rx, NULL);
+		total_recv += count;
 
-		if (count < nb_rx) {
-			for (i = count; i < nb_rx; i++) {
-				count_failed_enq += 1;
-				// printf("Failed to enqueue %d\n", count_failed_enq);
-				rte_pktmbuf_free(received_bufs[i]);
-			}
+		// So after 10MB throughput on UDP this will start to loop.
+		while (count < nb_rx) {
+			nb_rx = nb_rx - count;
+			count = rte_ring_enqueue_burst(send_ring, (void * const *)(received_bufs + total_recv), nb_rx, NULL);
+			total_recv += count;
+			// if (count < nb_rx) {
+			// 	printf("Count: %d, nb_rx: %d, total_recv: %d, iter: %d\n", count, nb_rx, total_recv, iteration);
+			// }
 		}
+
+		// aici pare sa fie bottlenck.
+		// if (count < nb_rx) {
+		// 	for (i = count; i < nb_rx; i++) {
+		// 		count_failed_enq += 1;
+		// 		// printf("Failed to enqueue %d\n", count_failed_enq);
+		// 		rte_pktmbuf_free(received_bufs[i]);
+		// 	}
+		// }
 	}
 }
 
