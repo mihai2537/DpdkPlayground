@@ -285,9 +285,10 @@ lcore_main(void)
 			// for (i = 0 ; i < count; i++) {
 			// 	bufs[i]->ol_flags = PKT_TX_TCP_CKSUM;
 			// }
+			printf("Received burst from secondary: %d\n", count);
 
 			const uint16_t nb_tx = rte_eth_tx_burst(port, 0, bufs, count);
-
+			printf("Sent to port: %d\n", nb_tx);
 			if (unlikely(nb_tx < count)) {
 				for (i = nb_tx; i < count; i++) {
 					printf("Nu s-a trimis pachetul.\n");
@@ -304,8 +305,11 @@ lcore_main(void)
 
 		if (unlikely(nb_rx == 0))
 			continue;
+		printf("Received burst from port: %d\n", nb_rx);
+
 
 		count = rte_ring_enqueue_burst(send_ring, (void * const *)received_bufs, nb_rx, NULL);
+		printf("Sent to secondary: %d\n", count);
 		total_recv += count;
 
 		// So after 10MB throughput on UDP this will start to loop.
