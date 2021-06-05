@@ -24,7 +24,7 @@
 #include <rte_gso.h>
 #include "shmem.h"
 
-#define RX_RING_SIZE 1024
+#define RX_RING_SIZE  1024
 #define TX_RING_SIZE 1024
 
 #define NUM_MBUFS 8191
@@ -237,14 +237,10 @@ print_buf_packet(struct rte_mbuf* mbuf)
 	printf("\n");
 }
 
-
 /*
- * The lcore main. This is the main thread that does the work.
- * Packet comes on RX buffer then it is sent to reader app.
- */
-
-static __rte_noreturn void
-lcore_main(void)
+	This function will receive from secondary and transmit to port.
+*/
+static int lcore_transmit_to_port(void * arg)
 {
 	uint16_t port;
 	uint16_t i = 0;
@@ -263,18 +259,15 @@ lcore_main(void)
 			   "not be optimal.\n",
 			   port);
 
-	printf("\nCore %u forwarding packets. [Ctrl+C to quit]\n",
+	printf("\nCore %u forwarding packets to port. [Ctrl+C to quit]\n",
 		   rte_lcore_id());
 
 	port = rte_eth_find_next_owned_by(0, RTE_ETH_DEV_NO_OWNER);
 
 	int count_failed_enq = 0;
-	int iteration = 0;
 	/* Run until the application is quit or killed. */
 	for (;;)
 	{	
-		iteration = (iteration + 1) % 10;
-
 		uint16_t i = 0;
 		void *mbuf;
 		struct rte_mbuf *bufs[BURST_SIZE];
@@ -296,8 +289,40 @@ lcore_main(void)
 				}
 			}
 		}
+	}
+	return 0;
+}
 
-//-------------------------------------------------------------------------------
+/*
+	This function will receive from port and send to secondary.
+*/
+static int lcore_receive_from_port(void * arg)
+{
+	uint16_t port;
+	uint16_t i = 0;
+	struct rte_mbuf *mbuf;
+
+	/*
+	 * Check that the port is on the same NUMA node as the polling thread
+	 * for best performance.
+	 */
+	RTE_ETH_FOREACH_DEV(port)
+	if (rte_eth_dev_socket_id(port) > 0 &&
+		rte_eth_dev_socket_id(port) !=
+			(int)rte_socket_id())
+		printf("WARNING, port %u is on remote NUMA node to "
+			   "polling thread.\n\tPerformance will "
+			   "not be optimal.\n",
+			   port);
+
+	printf("\nCore %u forwarding packets to firecracker. [Ctrl+C to quit]\n",
+		   rte_lcore_id());
+
+	port = rte_eth_find_next_owned_by(0, RTE_ETH_DEV_NO_OWNER);
+
+	for (;;)
+	{	
+		unsigned int count = 0;
 		// Get data from port and send it to secondary
 		struct rte_mbuf *received_bufs[BURST_SIZE];
 		uint16_t nb_rx = rte_eth_rx_burst(port, 0, received_bufs, BURST_SIZE);
@@ -321,16 +346,33 @@ lcore_main(void)
 			// 	printf("Count: %d, nb_rx: %d, total_recv: %d, iter: %d\n", count, nb_rx, total_recv, iteration);
 			// }
 		}
-
-		// aici pare sa fie bottlenck.
-		// if (count < nb_rx) {
-		// 	for (i = count; i < nb_rx; i++) {
-		// 		count_failed_enq += 1;
-		// 		// printf("Failed to enqueue %d\n", count_failed_enq);
-		// 		rte_pktmbuf_free(received_bufs[i]);
-		// 	}
-		// }
 	}
+	return 0;
+}
+
+
+/*
+ * The lcore main. This is the main thread that does the work.
+ * Packet comes on RX buffer then it is sent to reader app.
+ */
+
+static __rte_noreturn void
+lcore_main(void)
+{
+	unsigned lcore_id;
+	int counter = 0;
+		/* call lcore_recv() on every worker lcore */
+	RTE_LCORE_FOREACH_WORKER(lcore_id) {
+
+		if (counter == 0) {
+			rte_eal_remote_launch(lcore_receive_from_port, NULL, lcore_id);
+			counter += 1;
+		} else {
+			rte_eal_remote_launch(lcore_transmit_to_port, NULL, lcore_id);
+		}
+	}
+
+	rte_eal_mp_wait_lcore();
 }
 
 void init_stuff()
@@ -415,8 +457,8 @@ int main(int argc, char *argv[])
 		rte_exit(EXIT_FAILURE, "Cannot init port %" PRIu16 "\n",
 				 portid);
 
-	if (rte_lcore_count() > 1)
-		printf("\nWARNING: Too many lcores enabled. Only 1 used.\n");
+	if (rte_lcore_count() > 3)
+		printf("\nWARNING: Too many lcores enabled. Only 3 used.\n");
 
 	/* Call lcore_main on the main core only. */
 	lcore_main();
