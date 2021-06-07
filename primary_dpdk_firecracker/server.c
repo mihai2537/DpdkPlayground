@@ -242,6 +242,9 @@ print_buf_packet(struct rte_mbuf* mbuf)
 */
 static int lcore_loopback(void* arg)
 {
+	printf("\nCore %u forwarding packets in loopback. [Ctrl+C to quit]\n",
+		   rte_lcore_id());
+
 	for (;;) {
 
 		unsigned int count = 0;
@@ -256,6 +259,8 @@ static int lcore_loopback(void* arg)
 
 		count = rte_ring_enqueue_burst(send_ring, (void * const *)received_bufs, nb_rx, NULL);
 		// printf("Sent to secondary: %d\n", count);
+		printf("Receive / Sent back: %d : %d\n", nb_rx, count);
+
 		total_recv += count;
 
 		// So after 10MB throughput on UDP this will start to loop.
