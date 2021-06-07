@@ -238,6 +238,40 @@ print_buf_packet(struct rte_mbuf* mbuf)
 }
 
 /*
+	Receives from secondary and sends back to secondary.
+*/
+static int lcore_loopback(void* arg)
+{
+	for (;;) {
+
+		unsigned int count = 0;
+		// Get data from port and send it to secondary
+		struct rte_mbuf *received_bufs[BURST_SIZE];
+		uint16_t nb_rx = rte_ring_dequeue_burst(recv_ring, (void **)received_bufs, BURST_SIZE, NULL);
+		uint16_t total_recv = 0;
+
+		if (unlikely(nb_rx == 0))
+			continue;
+		// printf("Received burst from port: %d\n", nb_rx);
+
+		count = rte_ring_enqueue_burst(send_ring, (void * const *)received_bufs, nb_rx, NULL);
+		// printf("Sent to secondary: %d\n", count);
+		total_recv += count;
+
+		// So after 10MB throughput on UDP this will start to loop.
+		while (count < nb_rx) {
+			nb_rx = nb_rx - count;
+			count = rte_ring_enqueue_burst(send_ring, (void * const *)(received_bufs + total_recv), nb_rx, NULL);
+			total_recv += count;
+			// if (count < nb_rx) {
+			// 	printf("Count: %d, nb_rx: %d, total_recv: %d, iter: %d\n", count, nb_rx, total_recv, iteration);
+			// }
+		}
+	}
+
+}
+
+/*
 	This function will receive from secondary and transmit to port.
 */
 static int lcore_transmit_to_port(void * arg)
@@ -356,20 +390,14 @@ static int lcore_receive_from_port(void * arg)
  * Packet comes on RX buffer then it is sent to reader app.
  */
 
-static __rte_noreturn void
+static void
 lcore_main(void)
 {
 	unsigned lcore_id;
 	int counter = 0;
-		/* call lcore_recv() on every worker lcore */
-	RTE_LCORE_FOREACH_WORKER(lcore_id) {
 
-		if (counter == 0) {
-			rte_eal_remote_launch(lcore_receive_from_port, NULL, lcore_id);
-			counter += 1;
-		} else {
-			rte_eal_remote_launch(lcore_transmit_to_port, NULL, lcore_id);
-		}
+	RTE_LCORE_FOREACH_WORKER(lcore_id) {
+		rte_eal_remote_launch(lcore_loopback, NULL, lcore_id);
 	}
 
 	rte_eal_mp_wait_lcore();
@@ -446,19 +474,21 @@ int main(int argc, char *argv[])
 	argc -= ret;
 	argv += ret;
 
-	/* Check that there is at least a port available */
-	nb_ports = rte_eth_dev_count_avail();
-	if (nb_ports < 1)
-		rte_exit(EXIT_FAILURE, "Error: number of ports must be at least 1\n");
+	// I do not need ports for this loopback.
 
-	/* Initialize ONE port only. */
-	portid = rte_eth_find_next_owned_by(0, RTE_ETH_DEV_NO_OWNER);
-	if (port_init(portid, message_pool) != 0)
-		rte_exit(EXIT_FAILURE, "Cannot init port %" PRIu16 "\n",
-				 portid);
+	// /* Check that there is at least a port available */
+	// nb_ports = rte_eth_dev_count_avail();
+	// if (nb_ports < 1)
+	// 	rte_exit(EXIT_FAILURE, "Error: number of ports must be at least 1\n");
 
-	if (rte_lcore_count() > 3)
-		printf("\nWARNING: Too many lcores enabled. Only 3 used.\n");
+	// /* Initialize ONE port only. */
+	// portid = rte_eth_find_next_owned_by(0, RTE_ETH_DEV_NO_OWNER);
+	// if (port_init(portid, message_pool) != 0)
+	// 	rte_exit(EXIT_FAILURE, "Cannot init port %" PRIu16 "\n",
+	// 			 portid);
+
+	if (rte_lcore_count() > 2)
+		printf("\nWARNING: Too many lcores enabled. Only 2 used.\n");
 
 	/* Call lcore_main on the main core only. */
 	lcore_main();
