@@ -23,6 +23,7 @@
 
 #include <rte_gso.h>
 #include "shmem.h"
+#include <time.h>
 
 #define RX_RING_SIZE  1024
 #define TX_RING_SIZE 1024
@@ -244,6 +245,14 @@ static int lcore_loopback(void* arg)
 {
 	printf("\nCore %u forwarding packets in loopback. [Ctrl+C to quit]\n",
 		   rte_lcore_id());
+	int totalPackets = 0;
+
+	int msec = 0;
+	int trigger = 10000; // 10 seconds
+
+	time_t last_time;
+	time_t now;
+	time(&last_time);
 
 	for (;;) {
 
@@ -253,13 +262,27 @@ static int lcore_loopback(void* arg)
 		uint16_t nb_rx = rte_ring_dequeue_burst(recv_ring, (void **)received_bufs, BURST_SIZE, NULL);
 		uint16_t total_recv = 0;
 
-		if (unlikely(nb_rx == 0))
+		time(&now);
+
+		// if 10 seconds passed
+		if (difftime(now, last_time) > 10) {
+			printf("10 sec: %d\n", totalPackets);
+			totalPackets = 0;
+			time(&last_time);
+		}
+
+		if (unlikely(nb_rx == 0)) {
 			continue;
+		}
+		totalPackets += nb_rx;
+
+		
 		// printf("Received burst from port: %d\n", nb_rx);
 
 		count = rte_ring_enqueue_burst(send_ring, (void * const *)received_bufs, nb_rx, NULL);
 		// printf("Sent to secondary: %d\n", count);
-		printf("Receive / Sent back: %d : %d\n", nb_rx, count);
+		// printf("Receive / Sent back: %d : %d\n", nb_rx, count);
+
 
 		total_recv += count;
 
