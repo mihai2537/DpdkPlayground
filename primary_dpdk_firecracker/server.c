@@ -32,6 +32,9 @@
 #define MBUF_CACHE_SIZE 250
 #define BURST_SIZE 32
 
+//1 second
+#define TIME_LIMIT 1
+
 struct rte_ring *send_ring, *recv_ring;
 struct rte_mempool *message_pool;
 
@@ -265,8 +268,8 @@ static int lcore_loopback(void* arg)
 		time(&now);
 
 		// if 10 seconds passed
-		if (difftime(now, last_time) > 10) {
-			printf("10 sec: %d\n", totalPackets);
+		if (difftime(now, last_time) > TIME_LIMIT) {
+			printf("Deqed: %d\n", totalPackets);
 			totalPackets = 0;
 			time(&last_time);
 		}
